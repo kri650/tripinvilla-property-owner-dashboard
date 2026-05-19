@@ -52,7 +52,8 @@ export const bookingService = {
 };
 
 export const enquiryService = {
-  getMine: () => api.get('/owner-dashboard/enquiries'),
+  getMine: () => api.get('/enquiries/owner'),
+  getFiltered: (params) => api.get('/enquiries/owner/filter', { params }),
 };
 
 export const offerService = {
