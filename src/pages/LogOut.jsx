@@ -5,6 +5,11 @@ import { useNavigate } from 'react-router-dom';
 export default function LogOut() {
   const navigate = useNavigate();
 
+  useEffect(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('owner_user');
+  }, []);
+
   return (
     <div className="fade-in">
       <div style={{ height: '32px' }} />
@@ -25,7 +30,7 @@ export default function LogOut() {
           </p>
 
           <button 
-            onClick={() => navigate('/owner/properties')}
+            onClick={() => navigate('/owner/login')}
             style={{ 
               background: '#58A429', 
               color: '#ffffff', 

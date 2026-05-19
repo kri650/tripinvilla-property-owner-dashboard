@@ -1,72 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Filter, Calendar, CheckSquare, Clock, UserX } from 'lucide-react';
+import { bookingService } from '../services/api';
 
 export default function Bookings() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [bookingsList, setBookingsList] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBookings = async () => {
+      try {
+        const res = await bookingService.getMine();
+        setBookingsList(res.data);
+      } catch (err) {
+        console.error('Error fetching bookings:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBookings();
+  }, []);
 
   const bookingStats = [
-    { label: "Active Stays", value: "3 Guests", icon: <CheckSquare size={18} />, color: "#10b981" },
-    { label: "Upcoming Check-ins", value: "8 Bookings", icon: <Calendar size={18} />, color: "#3b82f6" },
-    { label: "Pending Payouts", value: "$4,550", icon: <Clock size={18} />, color: "#f59e0b" },
-    { label: "Cancelled This Month", value: "1 Booking", icon: <UserX size={18} />, color: "#ef4444" }
-  ];
-
-  const bookingsList = [
-    {
-      id: "BK-8842",
-      property: "Bodhi Homestay",
-      guest: "Rohan Sharma",
-      contact: "+91 98765 43210",
-      checkIn: "15 May 2026",
-      checkOut: "18 May 2026",
-      nights: 3,
-      payout: "$420",
-      status: "Confirmed"
-    },
-    {
-      id: "BK-8841",
-      property: "Whispering Palms Villa",
-      guest: "Elena Rostova",
-      contact: "+7 901 234-56-78",
-      checkIn: "20 May 2026",
-      checkOut: "25 May 2026",
-      nights: 5,
-      payout: "$1,250",
-      status: "Confirmed"
-    },
-    {
-      id: "BK-8840",
-      property: "Bodhi Homestay",
-      guest: "Amit Patel",
-      contact: "+91 87654 32109",
-      checkIn: "02 Jun 2026",
-      checkOut: "05 Jun 2026",
-      nights: 3,
-      payout: "$390",
-      status: "Pending"
-    },
-    {
-      id: "BK-8839",
-      property: "Serenity Hills Estate",
-      guest: "David Miller",
-      contact: "+1 (555) 019-2834",
-      checkIn: "10 Jun 2026",
-      checkOut: "17 Jun 2026",
-      nights: 7,
-      payout: "$2,800",
-      status: "Confirmed"
-    },
-    {
-      id: "BK-8838",
-      property: "Whispering Palms Villa",
-      guest: "Sarah Jenkins",
-      contact: "+44 20 7946 0958",
-      checkIn: "28 Jun 2026",
-      checkOut: "02 Jul 2026",
-      nights: 4,
-      payout: "$1,100",
-      status: "Confirmed"
-    }
+    { label: "Total Bookings", value: bookingsList.length, icon: <CheckSquare size={18} />, color: "#10b981" },
+    { label: "Active Stays", value: bookingsList.filter(b => b.status === 'Confirmed').length, icon: <Calendar size={18} />, color: "#3b82f6" },
+    { label: "Total Revenue", value: `₹${bookingsList.reduce((sum, b) => sum + b.totalPrice, 0).toLocaleString()}`, icon: <Clock size={18} />, color: "#f59e0b" },
+    { label: "Cancelled", value: bookingsList.filter(b => b.status === 'Cancelled').length, icon: <UserX size={18} />, color: "#ef4444" }
   ];
 
   return (
@@ -175,18 +134,22 @@ export default function Bookings() {
               </tr>
             </thead>
             <tbody>
-              {bookingsList
-                .filter(b => b.guest.toLowerCase().includes(searchTerm.toLowerCase()) || b.id.toLowerCase().includes(searchTerm.toLowerCase()))
+              {loading ? (
+                <tr><td colSpan="9" style={{ textAlign: 'center', padding: '20px' }}>Loading bookings...</td></tr>
+              ) : bookingsList.length === 0 ? (
+                <tr><td colSpan="9" style={{ textAlign: 'center', padding: '20px' }}>No bookings found.</td></tr>
+              ) : bookingsList
+                .filter(b => (b.user?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || b._id.toLowerCase().includes(searchTerm.toLowerCase()))
                 .map((booking, index) => (
                   <tr key={index}>
-                    <td style={{ fontWeight: 600, color: '#1d9e75' }}>{booking.id}</td>
-                    <td style={{ fontWeight: 500 }}>{booking.property}</td>
-                    <td style={{ fontWeight: 500, color: '#111827' }}>{booking.guest}</td>
-                    <td>{booking.contact}</td>
-                    <td>{booking.checkIn}</td>
-                    <td>{booking.checkOut}</td>
-                    <td>{booking.nights}</td>
-                    <td style={{ fontWeight: 600, color: '#111827' }}>{booking.payout}</td>
+                    <td style={{ fontWeight: 600, color: '#1d9e75' }}>{booking.razorpayOrderId || booking._id.substring(0, 8)}</td>
+                    <td style={{ fontWeight: 500 }}>{booking.property?.propertyName || booking.property?.name}</td>
+                    <td style={{ fontWeight: 500, color: '#111827' }}>{booking.user?.name || 'Guest'}</td>
+                    <td>{booking.user?.phone || 'N/A'}</td>
+                    <td>{new Date(booking.checkIn).toLocaleDateString()}</td>
+                    <td>{new Date(booking.checkOut).toLocaleDateString()}</td>
+                    <td>{Math.ceil((new Date(booking.checkOut) - new Date(booking.checkIn)) / (1000 * 60 * 60 * 24))}</td>
+                    <td style={{ fontWeight: 600, color: '#111827' }}>₹{booking.totalPrice}</td>
                     <td>
                       <span className={`badge ${booking.status.toLowerCase()}`}>
                         {booking.status}

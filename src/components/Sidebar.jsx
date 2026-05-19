@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import {
+  LayoutDashboard,
   Home,
   ClipboardList,
   Tag,
@@ -10,6 +11,12 @@ import {
 
 /* ─── Navigation Config (matches Owner Figma Dashboard exactly) ─────────────── */
 const NAV_SECTIONS = [
+  {
+    label: 'Dashboard',
+    items: [
+      { label: 'Dashboard Analytics', icon: LayoutDashboard, to: '/owner/dashboard' },
+    ],
+  },
   {
     label: 'Property Management',
     items: [

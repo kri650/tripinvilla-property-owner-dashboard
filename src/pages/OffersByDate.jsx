@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Search, Filter, Calendar, ChevronDown, MoreVertical, Edit2, Trash2, Clock } from 'lucide-react';
+import { offerService, propertyService } from '../services/api';
 
 export default function OffersByDate() {
   // Form State
@@ -15,34 +16,118 @@ export default function OffersByDate() {
   const [description, setDescription] = useState('Offer will applicable on first book');
 
   // Table State
-  const [offersList, setOffersList] = useState([
-    { id: '1020251', dates: '20 Feb - 12 PM to 1 Mar - 2 PM', name: 'Bodhi Roots Homestay', location: 'Bodh Gaya, Bihar, India', category: 'Homestay', room: '1 Deluxe Room', foods: 'Pure - Veg', amenities: 'Barbeque', offer: '30% Off', desc: 'Offer will applicable on first book', status: 'Active' },
-    { id: '1020251', dates: '20 Feb - 12 PM to 1 Mar - 2 PM', name: 'Bodhi Roots Homestay', location: 'Bodh Gaya, Bihar, India', category: 'Homestay', room: '1 Deluxe Room', foods: 'Pure - Veg', amenities: 'Barbeque', offer: '30% Off', desc: 'Offer will applicable on first book', status: 'Expired' },
-    { id: '1020251', dates: '20 Feb - 12 PM to 1 Mar - 2 PM', name: 'Bodhi Roots Homestay', location: 'Bodh Gaya, Bihar, India', category: 'Homestay', room: '1 Deluxe Room', foods: 'Pure - Veg', amenities: 'Barbeque', offer: '30% Off', desc: 'Offer will applicable on first book', status: 'Active' },
-    { id: '1020251', dates: '20 Feb - 12 PM to 1 Mar - 2 PM', name: 'Bodhi Roots Homestay', location: 'Bodh Gaya, Bihar, India', category: 'Homestay', room: '1 Deluxe Room', foods: 'Pure - Veg', amenities: 'Barbeque', offer: '30% Off', desc: 'Offer will applicable on first book', status: 'Expired' },
-    { id: '1020251', dates: '20 Feb - 12 PM to 1 Mar - 2 PM', name: 'Bodhi Roots Homestay', location: 'Bodh Gaya, Bihar, India', category: 'Homestay', room: '1 Deluxe Room', foods: 'Pure - Veg', amenities: 'Barbeque', offer: '30% Off', desc: 'Offer will applicable on first book', status: 'Active' },
-    { id: '1020251', dates: '20 Feb - 12 PM to 1 Mar - 2 PM', name: 'Bodhi Roots Homestay', location: 'Bodh Gaya, Bihar, India', category: 'Homestay', room: '1 Deluxe Room', foods: 'Pure - Veg', amenities: 'Barbeque', offer: '30% Off', desc: 'Offer will applicable on first book', status: 'Active' },
-  ]);
+  const [offersList, setOffersList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [ownerProperties, setOwnerProperties] = useState([]);
+
+  const mapOffer = (o) => {
+    const df = o.dateFrom ? new Date(o.dateFrom) : null;
+    const dt = o.dateTo ? new Date(o.dateTo) : null;
+    const dates = df && dt
+      ? `${df.toLocaleDateString()} - ${dt.toLocaleDateString()}`
+      : (df ? df.toLocaleDateString() : 'N/A');
+
+    return {
+      _id: o._id,
+      id: o.offerId || String(o._id || '').substring(0, 8),
+      dates,
+      name: o.propertyName || o.propertyId?.name || 'Property',
+      location: o.location || o.propertyId?.location || 'N/A',
+      category: o.category || 'N/A',
+      room: o.room || 'N/A',
+      foods: o.foods || 'N/A',
+      amenities: Array.isArray(o.amenities) ? o.amenities.join(', ') : (o.amenities || 'N/A'),
+      offer: typeof o.offerPercent === 'number' ? `${o.offerPercent}% Off` : (o.offer || 'N/A'),
+      desc: o.description || o.desc || '',
+      status: o.status || 'Active'
+    };
+  };
+
+  const refreshOffers = async () => {
+    const res = await offerService.getMine();
+    setOffersList((res.data || []).map(mapOffer));
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const [propsRes] = await Promise.all([
+          propertyService.getMine()
+        ]);
+        setOwnerProperties(propsRes.data || []);
+        await refreshOffers();
+      } catch (err) {
+        console.error('Error loading offers:', err);
+        setOffersList([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
+  }, []);
 
   const handleCreateOffer = (e) => {
     e.preventDefault();
-    const formattedDate = new Date(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    const newOffer = {
-      id: '1020251',
-      dates: `${formattedDate} - ${time}`,
-      name: propertyName,
-      location: 'Bodh Gaya, Bihar, India',
-      category: category,
-      room: roomType.split(',')[0],
-      foods: foods,
-      amenities: amenities.split(',')[0],
-      offer: offerPercent,
-      desc: description,
-      status: 'Active'
-    };
-    setOffersList([newOffer, ...offersList]);
-    alert('Special offer created successfully!');
+    (async () => {
+      try {
+        const df = new Date(date);
+        const dt = new Date(df.getTime() + 7 * 86400000);
+
+        const pctMatch = String(offerPercent).match(/\d+/);
+        const pct = pctMatch ? Number(pctMatch[0]) : 0;
+
+        const propNameClean = String(propertyName).split(',')[0].trim().toLowerCase();
+        const matchedProp = ownerProperties.find((p) => String(p.name || '').toLowerCase() === propNameClean)
+          || ownerProperties.find((p) => String(p.name || '').toLowerCase().includes(propNameClean));
+
+        const payload = {
+          dateFrom: df,
+          dateTo: dt,
+          propertyId: matchedProp?._id,
+          propertyName: matchedProp?.name || propertyName,
+          location: matchedProp?.location || matchedProp?.city || 'N/A',
+          category: matchedProp?.type || category,
+          room: roomType,
+          foods,
+          amenities: String(amenities).split(',').map(s => s.trim()).filter(Boolean),
+          offerPercent: pct,
+          description
+        };
+
+        await offerService.create(payload);
+        await refreshOffers();
+        alert('Special offer created successfully!');
+      } catch (err) {
+        console.error('Error creating offer:', err);
+        alert('Failed to create offer. Please check your server connection.');
+      }
+    })();
   };
+
+  const handleDeleteOffer = async (offerId) => {
+    if (!offerId) return;
+    const ok = confirm('Delete this offer?');
+    if (!ok) return;
+    try {
+      await offerService.remove(offerId);
+      setOffersList((prev) => prev.filter((o) => o._id !== offerId));
+    } catch (err) {
+      console.error('Error deleting offer:', err);
+      alert('Failed to delete offer.');
+    }
+  };
+
+  const filteredOffers = useMemo(() => {
+    if (!searchTerm) return offersList;
+    const q = searchTerm.toLowerCase();
+    return offersList.filter((o) =>
+      (o.name || '').toLowerCase().includes(q) ||
+      (o.location || '').toLowerCase().includes(q) ||
+      (o.category || '').toLowerCase().includes(q) ||
+      String(o.id || '').toLowerCase().includes(q)
+    );
+  }, [offersList, searchTerm]);
 
   return (
     <div className="fade-in">
@@ -204,7 +289,11 @@ export default function OffersByDate() {
                 </tr>
               </thead>
               <tbody>
-                {offersList.map((o, i) => (
+                {loading ? (
+                  <tr><td colSpan="12" style={{ padding: '14px 16px', color: '#6B7280' }}>Loading offers...</td></tr>
+                ) : filteredOffers.length === 0 ? (
+                  <tr><td colSpan="12" style={{ padding: '14px 16px', color: '#6B7280' }}>No offers found.</td></tr>
+                ) : filteredOffers.map((o, i) => (
                   <tr key={i}>
                     <td style={{ color: '#58A429', fontWeight: 600, padding: '14px 16px' }}>{o.id}</td>
                     <td style={{ color: '#6B7280', padding: '14px 16px' }}>{o.dates}</td>
@@ -233,7 +322,7 @@ export default function OffersByDate() {
                     <td style={{ padding: '14px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <button style={{ color: '#58A429', background: 'none', border: 'none', cursor: 'pointer' }}><Edit2 size={14} /></button>
-                        <button style={{ color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={14} /></button>
+                        <button onClick={() => handleDeleteOffer(o._id)} style={{ color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={14} /></button>
                         <button className="action-dots"><MoreVertical size={14} /></button>
                       </div>
                     </td>

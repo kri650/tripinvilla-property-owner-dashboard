@@ -1,271 +1,307 @@
-import React, { useState } from 'react';
-import { Search, Filter, Calendar, ChevronDown, CheckCircle2, XCircle, MoreVertical, Edit2, Trash2, ArrowUpRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, Filter, Calendar, ChevronDown, CheckCircle2, XCircle, MoreVertical, Edit2, Trash2, ArrowUpRight, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { propertyService } from '../services/api';
 
 export default function MyProperties() {
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
   // Form State
-  const [propertyType, setPropertyType] = useState('Homestay');
-  const [propertyName, setPropertyName] = useState('Aparthotel Stare Miasto, Deluxe');
-  const [roomType, setRoomType] = useState('1 Deluxe 4 Normal');
-  const [ownerContact, setOwnerContact] = useState('998877665544');
-  const [amenitiesTypes, setAmenitiesTypes] = useState('Barbeque, Pub & 2 others');
-  const [location, setLocation] = useState('Kasol, Himachal Pradesh, India');
-  const [propertyPrice, setPropertyPrice] = useState('₹1,23,940');
-  const [status, setStatus] = useState('Active');
-  const [aboutProperty, setAboutProperty] = useState('Experience a comfortable and refined stay at Azure Bay Hotel, located in the heart of the city and designed for both leisure and business travelers.');
-  const [fileName, setFileName] = useState('Image.jpg, Image.jpg');
+  const [formData, setFormData] = useState({
+    type: 'Homestay',
+    name: '',
+    bedRooms: 1,
+    ownerContact: '',
+    amenities: '',
+    location: '',
+    city: '',
+    price: '',
+    status: 'Active',
+    description: ''
+  });
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [editId, setEditId] = useState(null);
+  const [myProps, setMyProps] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // List State
-  const [myProps, setMyProps] = useState([
-    { id: '1020251', type: 'Homestay', name: 'Bodhi Roots Homestay', owner: 'Navin Kumar', contact: '998877665', amenities: 'Barbeque, Pub & 2 others', location: 'Kasol, Himachal\nPradesh', about: 'Experience a comfortable and refined...', status: 'Active' },
-    { id: '1020251', type: 'Homestay', name: 'Bodhi Roots Homestay', owner: 'Navin Kumar', contact: '998877665', amenities: 'Barbeque, Pub & 2 others', location: 'Kasol, Himachal\nPradesh', about: 'Experience a comfortable and refined...', status: 'Active' },
-    { id: '1020251', type: 'Homestay', name: 'Bodhi Roots Homestay', owner: 'Navin Kumar', contact: '998877665', amenities: 'Barbeque, Pub & 2 others', location: 'Kasol, Himachal\nPradesh', about: 'Experience a comfortable and refined...', status: 'Active' },
-    { id: '1020251', type: 'Homestay', name: 'Bodhi Roots Homestay', owner: 'Navin Kumar', contact: '998877665', amenities: 'Barbeque, Pub & 2 others', location: 'Kasol, Himachal\nPradesh', about: 'Experience a comfortable and refined...', status: 'Active' },
-  ]);
+  const fetchMyProperties = async () => {
+    try {
+      const res = await propertyService.getMine();
+      setMyProps(res.data);
+    } catch (err) {
+      console.error('Error fetching properties:', err);
+    }
+  };
 
-  const handleAddProperty = (e) => {
+  useEffect(() => {
+    fetchMyProperties();
+  }, []);
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleFileChange = (e) => {
+    setSelectedFiles(Array.from(e.target.files));
+  };
+
+  const handleEdit = (p) => {
+    setEditId(p._id);
+    setFormData({
+      type: p.type || 'Homestay',
+      name: p.name || '',
+      bedRooms: p.bedrooms !== undefined ? p.bedrooms : (p.bedRooms || 1),
+      ownerContact: p.ownerContact || '',
+      amenities: Array.isArray(p.amenities) ? p.amenities.join(', ') : (p.amenities || ''),
+      location: p.address || p.location || '',
+      city: p.city || '',
+      price: p.price_per_night !== undefined ? p.price_per_night : (p.price || ''),
+      status: p.status || 'Active',
+      description: p.description || ''
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this property?')) return;
+    try {
+      await propertyService.delete(id);
+      fetchMyProperties();
+    } catch (err) {
+      alert('Error deleting property');
+    }
+  };
+
+  const handleStatusToggle = async (id, currentStatus) => {
+    const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+    try {
+      await propertyService.updateStatus(id, newStatus);
+      fetchMyProperties();
+    } catch (err) {
+      alert('Error updating status: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const newProp = {
-      id: '1020251',
-      type: propertyType,
-      name: propertyName,
-      owner: 'Jhon Doe',
-      contact: ownerContact,
-      amenities: amenitiesTypes,
-      location: location.split(',')[0] + ', Himachal\nPradesh',
-      about: aboutProperty.substring(0, 35) + '...',
-      status: status
-    };
-    setMyProps([newProp, ...myProps]);
-    alert('Property added successfully!');
+    setLoading(true);
+    try {
+      let imageUrls = [];
+      if (selectedFiles.length > 0) {
+        const uploadData = new FormData();
+        selectedFiles.forEach(file => uploadData.append('images', file));
+        const uploadRes = await propertyService.uploadImages(uploadData);
+        imageUrls = uploadRes.data.urls;
+      }
+
+      const propertyData = {
+        type: formData.type,
+        name: formData.name,
+        bedrooms: Number(formData.bedRooms),
+        address: formData.location,
+        city: formData.city,
+        amenities: formData.amenities.split(',').map(a => a.trim()),
+        price_per_night: Number(formData.price),
+        status: formData.status,
+        description: formData.description
+      };
+      
+      if (imageUrls.length > 0) {
+        propertyData.images = imageUrls;
+      }
+
+      if (editId) {
+        await propertyService.update(editId, propertyData);
+        alert('Property updated successfully!');
+      } else {
+        await propertyService.add(propertyData);
+        alert('Property added successfully!');
+      }
+      
+      fetchMyProperties();
+      resetForm();
+    } catch (err) {
+      alert('Error saving property: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setEditId(null);
+    setFormData({
+      type: 'Homestay',
+      name: '',
+      bedRooms: 1,
+      ownerContact: '',
+      amenities: '',
+      location: '',
+      city: '',
+      price: '',
+      status: 'Active',
+      description: ''
+    });
+    setSelectedFiles([]);
   };
 
   return (
     <div className="fade-in">
-
-      {/* Spacing under topbar */}
       <div style={{ height: '16px' }} />
-
-      {/* Breadcrumb path indicator */}
       <div className="props-breadcrumb" style={{ margin: '0 39px 12px' }}>
         Property Management &gt; <span>My Properties</span>
       </div>
 
-      {/* ══ Section 1: Form Card inside light green container ══ */}
       <div className="dash-section" style={{ marginBottom: 16, padding: '24px' }}>
-        <form onSubmit={handleAddProperty} className="master-form-card" style={{ margin: 0, padding: 0, boxShadow: 'none', background: 'transparent' }}>
-          
-          {/* Form Header */}
+        <form id="property-form" onSubmit={handleSubmit} className="master-form-card" style={{ margin: 0, padding: 0, boxShadow: 'none', background: 'transparent' }}>
           <div className="master-form-header" style={{ marginBottom: '24px' }}>
             <h3 className="master-form-title" style={{ fontSize: '15px', fontWeight: 700, color: '#111827', fontFamily: '"Outfit", sans-serif' }}>
-              Add New Property
+              {editId ? 'Edit Property' : 'Add New Property'}
             </h3>
             <div className="master-form-actions">
-              <button 
-                type="button" 
-                className="btn-outline-green" 
-                onClick={() => navigate('/owner/requests')}
-                style={{ cursor: 'pointer', padding: '8px 16px', fontSize: '12.5px', border: '1px solid #58A429', color: '#58A429', borderRadius: '8px', background: 'transparent', fontWeight: 600 }}
-              >
-                Edit Pricing & Rules
-              </button>
-              <button 
-                type="submit" 
-                className="btn-solid-green" 
-                style={{ cursor: 'pointer', padding: '8px 24px', fontSize: '12.5px', background: '#58A429', color: '#ffffff', border: 'none', borderRadius: '8px', fontWeight: 600 }}
-              >
-                Add
+              {editId && (
+                <button type="button" className="btn-outline-green" onClick={resetForm} style={{ marginRight: '10px' }}>Cancel</button>
+              )}
+              <button type="submit" className="btn-solid-green" disabled={loading} style={{ cursor: 'pointer', padding: '8px 24px', fontSize: '12.5px', background: '#58A429', color: '#ffffff', border: 'none', borderRadius: '8px', fontWeight: 600 }}>
+                {loading ? 'Saving...' : (editId ? 'Update' : 'Add')}
               </button>
             </div>
           </div>
 
-          {/* Form Fields Grid - Row 1 */}
           <div className="form-grid-3">
             <div className="form-group">
               <label className="form-label">Property Type*</label>
-              <select className="form-select" value={propertyType} onChange={(e) => setPropertyType(e.target.value)}>
+              <select className="form-select" name="type" value={formData.type} onChange={handleChange}>
                 <option value="Homestay">Homestay</option>
                 <option value="Villa">Villa</option>
                 <option value="Apartment">Apartment</option>
+                <option value="Resort">Resort</option>
               </select>
             </div>
-
             <div className="form-group">
               <label className="form-label">Property Name*</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                value={propertyName} 
-                onChange={(e) => setPropertyName(e.target.value)}
-                placeholder="Enter property name"
-              />
+              <input type="text" className="form-input" name="name" value={formData.name} onChange={handleChange} placeholder="Enter property name" required />
             </div>
-
             <div className="form-group">
-              <label className="form-label">Room Type*</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                value={roomType} 
-                onChange={(e) => setRoomType(e.target.value)}
-                placeholder="e.g. 1 Deluxe 4 Normal"
-              />
+              <label className="form-label">Bedrooms*</label>
+              <input type="number" className="form-input" name="bedRooms" value={formData.bedRooms} onChange={handleChange} required />
             </div>
           </div>
 
-          {/* Form Fields Grid - Row 2 */}
           <div className="form-grid-3">
             <div className="form-group">
-              <label className="form-label">Owner Contact*</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                value={ownerContact} 
-                onChange={(e) => setOwnerContact(e.target.value)}
-                placeholder="Enter contact number"
-              />
+              <label className="form-label">Location (Full Address)*</label>
+              <input type="text" className="form-input" name="location" value={formData.location} onChange={handleChange} placeholder="Full address" required />
             </div>
-
             <div className="form-group">
-              <label className="form-label">Amenities Types*</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                value={amenitiesTypes} 
-                onChange={(e) => setAmenitiesTypes(e.target.value)}
-                placeholder="e.g. Barbeque, Pub & 2 others"
-              />
+              <label className="form-label">City*</label>
+              <input type="text" className="form-input" name="city" value={formData.city} onChange={handleChange} placeholder="e.g. Kasol" required />
             </div>
-
             <div className="form-group">
-              <label className="form-label">Location*</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                value={location} 
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="City, State, Country"
-              />
+              <label className="form-label">Amenities (Comma separated)*</label>
+              <input type="text" className="form-input" name="amenities" value={formData.amenities} onChange={handleChange} placeholder="Barbeque, WiFi, Pool" required />
             </div>
           </div>
 
-          {/* Form Fields Grid - Row 3 */}
-          <div className="form-grid-3">
+          <div className="form-grid-3" style={{ marginBottom: '16px' }}>
             <div className="form-group">
-              <label className="form-label">Property Price*</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                value={propertyPrice} 
-                onChange={(e) => setPropertyPrice(e.target.value)}
-                placeholder="₹ Amount"
-              />
+              <label className="form-label">Price per Night*</label>
+              <input type="number" className="form-input" name="price" value={formData.price} onChange={handleChange} placeholder="₹ Amount" required />
             </div>
-
             <div className="form-group">
-              <label className="form-label">Upload Property Images* <span style={{ color: '#EF4444', fontWeight: 400, fontSize: '11px' }}>Supported File: jpg / max. 5mb</span></label>
-              <div className="file-upload-wrapper">
-                <input 
-                  type="text" 
-                  className="file-upload-input" 
-                  value={fileName} 
-                  readOnly 
-                  style={{ pointerEvents: 'none' }}
-                />
-                <button type="button" className="btn-browse">Browse</button>
+              <label className="form-label">Upload Images*</label>
+              <div className="file-upload-wrapper" onClick={() => fileInputRef.current.click()} style={{ cursor: 'pointer' }}>
+                <input type="text" className="file-upload-input" value={selectedFiles.length > 0 ? `${selectedFiles.length} files selected` : 'Click to browse'} readOnly />
+                <button type="button" className="btn-browse"><Upload size={14} /></button>
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} multiple hidden accept="image/*" />
               </div>
             </div>
-
             <div className="form-group">
               <label className="form-label">Status*</label>
-              <select className="form-select" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <select className="form-select" name="status" value={formData.status} onChange={handleChange}>
                 <option value="Active">Active</option>
-                <option value="In-Active">In-Active</option>
+                <option value="Inactive">Inactive</option>
               </select>
             </div>
-          </div>
-
-          {/* About Textarea */}
-          <div className="form-grid-1" style={{ margin: 0 }}>
-            <div className="form-group">
-              <label className="form-label">About Property*</label>
-              <textarea 
-                className="form-textarea" 
-                rows={3} 
-                value={aboutProperty} 
-                onChange={(e) => setAboutProperty(e.target.value)}
-                placeholder="Write description about property..."
-              />
+            
+            <div className="form-group" style={{ gridColumn: 'span 3', marginTop: '8px' }}>
+              <label className="form-label">Description*</label>
+              <textarea className="form-textarea" name="description" rows={3} value={formData.description} onChange={handleChange} placeholder="Write description about property..." required />
             </div>
           </div>
-
         </form>
       </div>
 
-      {/* ══ Section 2: Table Card inside light green container ══ */}
       <div className="dash-section" style={{ marginBottom: 24, padding: '24px' }}>
         <div className="chart-card" style={{ padding: 0, overflow: 'hidden', borderRadius: 12, border: 'none', boxShadow: 'none' }}>
           <div style={{ overflowX: 'auto' }}>
             <table className="data-table" style={{ whiteSpace: 'nowrap' }}>
               <thead>
                 <tr>
-                  {['Property No.', 'Property Type', 'Image', 'Property Name', 'Owner Name', 'Owner Contact', 'Amenities Types', 'Location', 'About Property', 'Status', ''].map((h, i) => (
-                    <th key={i} style={{ color: '#9CA3AF', fontWeight: 500, padding: '14px 16px' }}>
-                      <span className="th-inner">
-                        {h}
-                        {h && <ChevronDown size={10} style={{ color: '#CBD5E1', marginLeft: 4 }} />}
-                      </span>
-                    </th>
+                  {[
+                    { label: 'Property No.', width: '12%' },
+                    { label: 'Type', width: '10%' },
+                    { label: 'Image', width: '8%' },
+                    { label: 'Name', width: '25%' },
+                    { label: 'City', width: '15%' },
+                    { label: 'Price', width: '12%' },
+                    { label: 'Status', width: '10%' },
+                    { label: 'Actions', width: '8%' }
+                  ].map((col, i) => (
+                    <th key={i} style={{ color: '#374151', fontWeight: 600, padding: '14px 16px', width: col.width, textAlign: 'left' }}>{col.label}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {myProps.map((p, i) => (
+                {myProps.length > 0 ? myProps.map((p, i) => (
                   <tr key={i}>
-                    <td style={{ color: '#58A429', fontWeight: 600, padding: '14px 16px' }}>{p.id}</td>
+                    <td style={{ color: '#58A429', fontWeight: 600, padding: '14px 16px' }}>{p.propertyNo}</td>
                     <td style={{ color: '#6B7280', padding: '14px 16px' }}>{p.type}</td>
                     <td style={{ padding: '14px 16px' }}>
                       <div style={{ width: 40, height: 30, background: '#E5E7EB', borderRadius: 6, overflow: 'hidden' }}>
-                        <img 
-                          src="https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=100&q=80" 
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                          alt="" 
-                        />
+                        <img src={p.images?.[0] || 'https://via.placeholder.com/40x30'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
                       </div>
                     </td>
                     <td style={{ color: '#111827', fontWeight: 500, padding: '14px 16px' }}>{p.name}</td>
-                    <td style={{ color: '#111827', fontWeight: 500, padding: '14px 16px' }}>{p.owner}</td>
-                    <td style={{ color: '#4B5563', padding: '14px 16px' }}>{p.contact}</td>
-                    <td style={{ color: '#4B5563', padding: '14px 16px' }}>{p.amenities}</td>
-                    <td style={{ color: '#6B7280', whiteSpace: 'pre-line', lineHeight: 1.4, padding: '14px 16px' }}>{p.location}</td>
-                    <td style={{ color: '#6B7280', padding: '14px 16px', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '200px' }}>{p.about}</td>
+                    <td style={{ color: '#4B5563', padding: '14px 16px' }}>{p.city}</td>
+                    <td style={{ color: '#111827', fontWeight: 500, padding: '14px 16px' }}>₹{p.price_per_night !== undefined ? p.price_per_night : p.price}</td>
                     <td style={{ padding: '14px 16px' }}>
-                      {p.status === 'Active'
-                        ? <span className="status-pill active" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, background: '#DCFCE7', color: '#58A429' }}>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#58A429' }}></span> Active
-                          </span>
-                        : <span className="status-pill inactive" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, background: '#FEE2E2', color: '#EF4444' }}>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#EF4444' }}></span> In-Active
-                          </span>
-                      }
+                      <span 
+                        className={`status-pill ${p.status === 'Active' ? 'active' : 'inactive'}`} 
+                        onClick={() => handleStatusToggle(p._id, p.status)}
+                        style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '4px', 
+                          padding: '3px 10px', 
+                          borderRadius: '20px', 
+                          fontSize: '11px', 
+                          fontWeight: 600, 
+                          background: p.status === 'Active' ? '#DCFCE7' : '#FEE2E2', 
+                          color: p.status === 'Active' ? '#58A429' : '#EF4444',
+                          cursor: 'pointer',
+                          userSelect: 'none'
+                        }}
+                        title="Click to toggle status"
+                      >
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: p.status === 'Active' ? '#58A429' : '#EF4444' }}></span> {p.status}
+                      </span>
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <button style={{ color: '#58A429', background: 'none', border: 'none', cursor: 'pointer' }}><Edit2 size={14} /></button>
-                        <button style={{ color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={14} /></button>
-                        <button className="action-dots"><MoreVertical size={14} /></button>
+                        <button type="button" onClick={() => handleEdit(p)} style={{ color: '#58A429', background: 'none', border: 'none', cursor: 'pointer' }}><Edit2 size={14} /></button>
+                        <button type="button" onClick={() => handleDelete(p._id)} style={{ color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
-                ))}
+                )) : (
+                  <tr><td colSpan="8" style={{ textAlign: 'center', padding: '20px' }}>No properties found.</td></tr>
+                )}
               </tbody>
             </table>
           </div>
         </div>
       </div>
-
     </div>
   );
 }

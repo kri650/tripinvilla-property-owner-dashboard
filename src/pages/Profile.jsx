@@ -1,34 +1,76 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Mail, Phone, Home, Shield, CheckCircle2 } from 'lucide-react';
+import { userService } from '../services/api';
 
 export default function Profile() {
   const [formData, setFormData] = useState({
-    name: 'Navin Kumar',
-    email: 'navin@gmail.com',
-    phone: '+91 99887 76543',
-    company: 'NK Premium Rentals Ltd',
-    pan: 'ABCDE1234F',
-    bank: 'HDFC Bank Ltd',
-    accountNum: '501002938475',
-    ifsc: 'HDFC0000124',
-    address: 'Flat 402, Green Meadows Apartment, Phase 2',
-    city: 'Bangalore',
-    state: 'Karnataka',
-    pincode: '560037'
+    name: '',
+    email: '',
+    phone: '',
+    company: '',
+    pan: '',
+    bank: '',
+    accountNum: '',
+    ifsc: '',
+    address: '',
+    city: '',
+    state: '',
+    pincode: ''
   });
 
-  const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await userService.getProfile();
+        const data = res.data;
+        setFormData({
+          name: data.name || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          company: data.company || '',
+          pan: data.pan || '',
+          bank: data.bank || '',
+          accountNum: data.accountNum || '',
+          ifsc: data.ifsc || '',
+          address: data.address || '',
+          city: data.city || '',
+          state: data.state || '',
+          pincode: data.pincode || ''
+        });
+      } catch (err) {
+        console.error('Error fetching profile:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setSaving(true);
+    setMessage('');
+    try {
+      await userService.updateProfile(formData);
+      setMessage('Profile Saved Successfully!');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (err) {
+      setMessage('Error saving profile');
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) return <div style={{ padding: '50px', textAlign: 'center' }}>Loading profile...</div>;
 
   return (
     <div className="dashboard-container fade-in">
@@ -39,20 +81,20 @@ export default function Profile() {
           <p style={{ color: '#6b7280', fontSize: 13, marginTop: 4 }}>Manage your personal details, payout bank accounts, and contact preferences</p>
         </div>
         
-        {saved && (
+        {message && (
           <div style={{
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            color: '#10b981',
-            background: '#dcfce7',
+            color: message.includes('Error') ? '#ef4444' : '#10b981',
+            background: message.includes('Error') ? '#fee2e2' : '#dcfce7',
             padding: '8px 16px',
             borderRadius: 8,
             fontWeight: 600,
             fontSize: 13,
-            boxShadow: '0 2px 4px rgba(16, 185, 129, 0.1)'
+            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
           }}>
-            <CheckCircle2 size={16} /> Profile Saved Successfully!
+            {message.includes('Error') ? null : <CheckCircle2 size={16} />} {message}
           </div>
         )}
       </div>
@@ -227,11 +269,8 @@ export default function Profile() {
           </div>
 
           <div style={{ display: 'flex', gap: 12 }}>
-            <button type="submit" className="btn btn-primary" style={{ padding: '12px 28px', borderRadius: 8, fontSize: 13.5 }}>
-              Save Account Profile
-            </button>
-            <button type="button" className="btn btn-secondary" style={{ padding: '12px 24px', borderRadius: 8, fontSize: 13.5 }}>
-              Discard Changes
+            <button type="submit" disabled={saving} className="btn btn-primary" style={{ padding: '12px 28px', borderRadius: 8, fontSize: 13.5 }}>
+              {saving ? 'Saving...' : 'Save Account Profile'}
             </button>
           </div>
 
@@ -254,28 +293,11 @@ export default function Profile() {
               marginBottom: 16,
               boxShadow: '0 8px 16px -4px rgba(29, 158, 117, 0.4)'
             }}>
-              NK
+              {formData.name?.split(' ').map(n => n[0]).join('') || 'U'}
             </div>
             
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111827', margin: 0, fontFamily: '"Outfit", sans-serif' }}>Navin Kumar</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111827', margin: 0, fontFamily: '"Outfit", sans-serif' }}>{formData.name}</h3>
             <span style={{ fontSize: 11.5, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', marginTop: 4 }}>Premium Host</span>
-            
-            <div style={{ width: '100%', height: 1, background: '#f1f5f9', margin: '16px 0' }} />
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                <span style={{ color: '#6b7280' }}>Host Since</span>
-                <span style={{ fontWeight: 600, color: '#334155' }}>June 2024</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                <span style={{ color: '#6b7280' }}>Verified Status</span>
-                <span style={{ fontWeight: 600, color: '#10b981' }}>Verified ✅</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                <span style={{ color: '#6b7280' }}>Response Rate</span>
-                <span style={{ fontWeight: 600, color: '#1d9e75' }}>98%</span>
-              </div>
-            </div>
           </div>
         </div>
 

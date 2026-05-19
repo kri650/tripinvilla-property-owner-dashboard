@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Calendar, ChevronDown, Plus } from 'lucide-react';
 
 const PAGE_TITLES = {
+  '/owner/dashboard':  'Dashboard Analytics',
   '/owner/properties': 'My Properties',
   '/owner/requests':   'Property Requests',
   '/owner/offers':     'Offers by Date',
@@ -19,6 +20,10 @@ export default function Topbar() {
   const navigate = useNavigate();
   const title = PAGE_TITLES[location.pathname] || 'My Properties';
 
+  const userStr = localStorage.getItem('owner_user');
+  const user = userStr ? JSON.parse(userStr) : { name: 'Jhon Doe', email: 'jhon@gmail.com' };
+  const initials = user.name ? user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'J';
+
   return (
     <header className="topbar" style={{ padding: '0 39px 0 39px' }}>
       {/* Left – page title */}
@@ -32,6 +37,10 @@ export default function Topbar() {
         {/* "Add Property" green button (only visible on My Properties page to match Figma design) */}
         {location.pathname === '/owner/properties' && (
           <button 
+            onClick={() => {
+              const el = document.getElementById('property-form');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
             className="props-btn-add" 
             style={{ 
               background: '#58A429', 
@@ -61,11 +70,11 @@ export default function Topbar() {
         {/* User block */}
         <div className="topbar-user" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 12px', borderRadius: '8px', border: '1px solid #E5E7EB', background: '#ffffff' }}>
           <div className="topbar-avatar" style={{ background: '#58A429', width: '32px', height: '32px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', fontWeight: 700, fontSize: '14px' }}>
-            J
+            {initials}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div className="topbar-user-name" style={{ fontSize: '13px', fontWeight: 600, color: '#111827' }}>Jhon Doe</div>
-            <div className="topbar-user-role" style={{ fontSize: '11px', color: '#6B7280' }}>jhon@gmail.com</div>
+            <div className="topbar-user-name" style={{ fontSize: '13px', fontWeight: 600, color: '#111827' }}>{user.name}</div>
+            <div className="topbar-user-role" style={{ fontSize: '11px', color: '#6B7280' }}>{user.email}</div>
           </div>
         </div>
       </div>
