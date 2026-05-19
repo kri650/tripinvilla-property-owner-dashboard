@@ -56,7 +56,7 @@ export const enquiryService = {
 };
 
 export const offerService = {
-  getMine: () => api.get('/owner-dashboard/offers'),
+  getMine: () => api.get('/offers/owner'),
   create: (data) => api.post('/offers', data),
   remove: (id) => api.delete(`/offers/${id}`),
 };

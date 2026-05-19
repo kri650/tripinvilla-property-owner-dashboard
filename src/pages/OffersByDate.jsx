@@ -1,113 +1,139 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Search, Filter, Calendar, ChevronDown, MoreVertical, Edit2, Trash2, Clock } from 'lucide-react';
-import { offerService, propertyService } from '../services/api';
+import { offerService, propertyRequestService } from '../services/api';
 
 export default function OffersByDate() {
   // Form State
-  const [propertyName, setPropertyName] = useState('Aparthotel Stare Miasto, Deluxe');
-  const [category, setCategory] = useState('Homestay');
-  const [roomType, setRoomType] = useState('Deluxe Room 1, Semi Deluxe 2');
-  const [foods, setFoods] = useState('Pure - Veg');
-  const [amenities, setAmenities] = useState('Barbeque, Pub & 2 others');
-  const [price, setPrice] = useState('₹1,233 per night');
-  const [date, setDate] = useState('2025-12-12'); // 12 Dec, 2025
+  const [selectedRequestId, setSelectedRequestId] = useState('');
+  const [propertyId, setPropertyId] = useState('');
+  const [category, setCategory] = useState('');
+  const [roomType, setRoomType] = useState('');
+  const [foods, setFoods] = useState('Pure Veg');
+  const [amenities, setAmenities] = useState('');
+  const [price, setPrice] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [time, setTime] = useState('9:00 AM');
   const [offerPercent, setOfferPercent] = useState('20% Off');
   const [description, setDescription] = useState('Offer will applicable on first book');
 
-  // Table State
+  // State lists
+  const [approvedRequests, setApprovedRequests] = useState([]);
   const [offersList, setOffersList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [ownerProperties, setOwnerProperties] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
 
   const mapOffer = (o) => {
-    const df = o.dateFrom ? new Date(o.dateFrom) : null;
-    const dt = o.dateTo ? new Date(o.dateTo) : null;
-    const dates = df && dt
-      ? `${df.toLocaleDateString()} - ${dt.toLocaleDateString()}`
-      : (df ? df.toLocaleDateString() : 'N/A');
+    const od = o.offer_date ? new Date(o.offer_date) : (o.dateFrom ? new Date(o.dateFrom) : null);
+    const dateFormatted = od ? od.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
+    const timeFormatted = o.offer_time || 'N/A';
 
     return {
-      _id: o._id,
-      id: o.offerId || String(o._id || '').substring(0, 8),
-      dates,
-      name: o.propertyName || o.propertyId?.name || 'Property',
-      location: o.location || o.propertyId?.location || 'N/A',
+      _id: o._id || o.id,
+      id: o.offerId || 'N/A',
+      dates: `${dateFormatted} at ${timeFormatted}`,
+      name: o.propertyName || o.property_id?.name || 'Property',
+      location: o.location || o.property_id?.location || 'N/A',
       category: o.category || 'N/A',
-      room: o.room || 'N/A',
-      foods: o.foods || 'N/A',
+      room: o.room_type || o.room || 'N/A',
+      foods: o.food_type || o.foods || 'N/A',
       amenities: Array.isArray(o.amenities) ? o.amenities.join(', ') : (o.amenities || 'N/A'),
-      offer: typeof o.offerPercent === 'number' ? `${o.offerPercent}% Off` : (o.offer || 'N/A'),
+      offer: o.offer_percent || (typeof o.offerPercent === 'number' ? `${o.offerPercent}% Off` : (o.offer || 'N/A')),
       desc: o.description || o.desc || '',
-      status: o.status || 'Active'
+      status: o.status || 'active'
     };
   };
 
   const refreshOffers = async () => {
-    const res = await offerService.getMine();
-    setOffersList((res.data || []).map(mapOffer));
+    try {
+      const res = await offerService.getMine();
+      setOffersList((res.data || []).map(mapOffer));
+    } catch (err) {
+      console.error('Error fetching offers:', err);
+    }
+  };
+
+  const init = async () => {
+    try {
+      setLoading(true);
+      const reqsRes = await propertyRequestService.getMine();
+      const approved = (reqsRes.data || []).filter(r => r.admin_status === 'approved');
+      setApprovedRequests(approved);
+
+      // Auto-select first request if available
+      if (approved.length > 0) {
+        const first = approved[0];
+        setSelectedRequestId(first._id || first.id);
+        setPropertyId(first.property_id || first.property?._id || '');
+        setCategory(first.category || first.property?.type || 'Homestay');
+        setRoomType(first.room_type || 'Deluxe Room');
+        setAmenities(Array.isArray(first.amenities_types) ? first.amenities_types.join(', ') : '');
+        setPrice(first.price_per_room || 0);
+      }
+
+      await refreshOffers();
+    } catch (err) {
+      console.error('Error loading page data:', err);
+      setOffersList([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    const init = async () => {
-      try {
-        const [propsRes] = await Promise.all([
-          propertyService.getMine()
-        ]);
-        setOwnerProperties(propsRes.data || []);
-        await refreshOffers();
-      } catch (err) {
-        console.error('Error loading offers:', err);
-        setOffersList([]);
-      } finally {
-        setLoading(false);
-      }
-    };
     init();
   }, []);
 
-  const handleCreateOffer = (e) => {
+  const handleRequestChange = (requestId) => {
+    setSelectedRequestId(requestId);
+    const req = approvedRequests.find(r => r._id === requestId || r.id === requestId);
+    if (req) {
+      setPropertyId(req.property_id || req.property?._id || '');
+      setCategory(req.category || req.property?.type || 'Homestay');
+      setRoomType(req.room_type || 'Deluxe Room');
+      setAmenities(Array.isArray(req.amenities_types) ? req.amenities_types.join(', ') : '');
+      setPrice(req.price_per_room || 0);
+    } else {
+      setPropertyId('');
+      setCategory('');
+      setRoomType('');
+      setAmenities('');
+      setPrice('');
+    }
+  };
+
+  const handleCreateOffer = async (e) => {
     e.preventDefault();
-    (async () => {
-      try {
-        const df = new Date(date);
-        const dt = new Date(df.getTime() + 7 * 86400000);
+    if (!propertyId) {
+      alert('Please select a property configuration.');
+      return;
+    }
 
-        const pctMatch = String(offerPercent).match(/\d+/);
-        const pct = pctMatch ? Number(pctMatch[0]) : 0;
+    try {
+      setSubmitting(true);
+      const payload = {
+        property_id: propertyId,
+        food_type: foods,
+        offer_date: date,
+        offer_time: time,
+        offer_percent: offerPercent,
+        description: description
+      };
 
-        const propNameClean = String(propertyName).split(',')[0].trim().toLowerCase();
-        const matchedProp = ownerProperties.find((p) => String(p.name || '').toLowerCase() === propNameClean)
-          || ownerProperties.find((p) => String(p.name || '').toLowerCase().includes(propNameClean));
-
-        const payload = {
-          dateFrom: df,
-          dateTo: dt,
-          propertyId: matchedProp?._id,
-          propertyName: matchedProp?.name || propertyName,
-          location: matchedProp?.location || matchedProp?.city || 'N/A',
-          category: matchedProp?.type || category,
-          room: roomType,
-          foods,
-          amenities: String(amenities).split(',').map(s => s.trim()).filter(Boolean),
-          offerPercent: pct,
-          description
-        };
-
-        await offerService.create(payload);
-        await refreshOffers();
-        alert('Special offer created successfully!');
-      } catch (err) {
-        console.error('Error creating offer:', err);
-        alert('Failed to create offer. Please check your server connection.');
-      }
-    })();
+      await offerService.create(payload);
+      await refreshOffers();
+      alert('Promotional offer created successfully and is live instantly!');
+    } catch (err) {
+      console.error('Error creating offer:', err);
+      alert(err.response?.data?.message || 'Failed to create offer.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDeleteOffer = async (offerId) => {
     if (!offerId) return;
-    const ok = confirm('Delete this offer?');
+    const ok = confirm('Are you sure you want to delete this offer?');
     if (!ok) return;
     try {
       await offerService.remove(offerId);
@@ -138,51 +164,66 @@ export default function OffersByDate() {
         Property Management &gt; <span>Offers by Date</span>
       </div>
 
-      {/* ══ Section 1: Form Card inside light green container ══ */}
+      {/* ══ Section 1: Form Card ══ */}
       <div className="dash-section" style={{ marginBottom: 16, padding: '24px' }}>
         <form onSubmit={handleCreateOffer} className="master-form-card" style={{ margin: 0, padding: 0, boxShadow: 'none', background: 'transparent' }}>
           
           {/* Form Header */}
           <div className="master-form-header" style={{ marginBottom: '24px' }}>
             <h3 className="master-form-title" style={{ fontSize: '15px', fontWeight: 700, color: '#111827', fontFamily: '"Outfit", sans-serif' }}>
-              Offers by Date
+              Create Promotional Offer
             </h3>
             <button 
               type="submit" 
               className="btn-solid-green" 
-              style={{ cursor: 'pointer', padding: '8px 24px', fontSize: '12.5px', background: '#58A429', color: '#ffffff', border: 'none', borderRadius: '8px', fontWeight: 600 }}
+              disabled={submitting}
+              style={{ cursor: 'pointer', padding: '8px 24px', fontSize: '12.5px', background: '#58A429', color: '#ffffff', border: 'none', borderRadius: '8px', fontWeight: 600, opacity: submitting ? 0.7 : 1 }}
             >
-              Add
+              {submitting ? 'Adding...' : 'Add Offer'}
             </button>
           </div>
 
           {/* Form Fields Grid - Row 1 */}
           <div className="form-grid-3">
             <div className="form-group">
-              <label className="form-label">Property Name*</label>
+              <label className="form-label">Property Name (Only Approved Properties)*</label>
+              <select 
+                className="form-select" 
+                value={selectedRequestId} 
+                onChange={(e) => handleRequestChange(e.target.value)}
+                required
+              >
+                <option value="">Select approved configuration...</option>
+                {approvedRequests.map(r => (
+                  <option key={r._id || r.id} value={r._id || r.id}>
+                    {r.propertyName || r.property?.name} ({r.room_type})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Category (Auto-filled)*</label>
               <input 
                 type="text" 
                 className="form-input" 
-                value={propertyName} 
-                onChange={(e) => setPropertyName(e.target.value)}
+                value={category} 
+                readOnly 
+                disabled 
+                placeholder="Select property first"
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Category*</label>
-              <select className="form-select" value={category} onChange={(e) => setCategory(e.target.value)}>
-                <option value="Homestay">Homestay</option>
-                <option value="Villa">Villa</option>
-                <option value="Apartment">Apartment</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Room Type*</label>
-              <select className="form-select" value={roomType} onChange={(e) => setRoomType(e.target.value)}>
-                <option value="Deluxe Room 1, Semi Deluxe 2">Deluxe Room 1, Semi Deluxe 2</option>
-                <option value="Standard Room">Standard Room</option>
-              </select>
+              <label className="form-label">Room Type (Auto-filled)*</label>
+              <input 
+                type="text" 
+                className="form-input" 
+                value={roomType} 
+                readOnly 
+                disabled 
+                placeholder="Select property first"
+              />
             </div>
           </div>
 
@@ -191,29 +232,33 @@ export default function OffersByDate() {
             <div className="form-group">
               <label className="form-label">Foods*</label>
               <select className="form-select" value={foods} onChange={(e) => setFoods(e.target.value)}>
-                <option value="Pure - Veg">Pure - Veg</option>
-                <option value="Non - Veg">Non - Veg</option>
-                <option value="All Foods">All Foods</option>
+                <option value="Pure Veg">Pure Veg</option>
+                <option value="Non-Veg">Non-Veg</option>
+                <option value="Both">Both</option>
               </select>
             </div>
 
             <div className="form-group">
-              <label className="form-label">Amenities Types*</label>
+              <label className="form-label">Amenities Types (Auto-filled)*</label>
               <input 
                 type="text" 
                 className="form-input" 
                 value={amenities} 
-                onChange={(e) => setAmenities(e.target.value)}
+                readOnly 
+                disabled 
+                placeholder="Select property first"
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Price for Room*</label>
+              <label className="form-label">Price for Room (Auto-filled)*</label>
               <input 
                 type="text" 
                 className="form-input" 
-                value={price} 
-                onChange={(e) => setPrice(e.target.value)}
+                value={price ? `₹${price} per night` : ''} 
+                readOnly 
+                disabled 
+                placeholder="Select property first"
               />
             </div>
           </div>
@@ -221,36 +266,37 @@ export default function OffersByDate() {
           {/* Form Fields Grid - Row 3 */}
           <div className="form-grid-3">
             <div className="form-group">
-              <label className="form-label">Date*</label>
-              <div style={{ position: 'relative' }}>
-                <input 
-                  type="date" 
-                  className="form-input" 
-                  value={date} 
-                  onChange={(e) => setDate(e.target.value)}
-                  style={{ paddingRight: '36px' }}
-                />
-              </div>
+              <label className="form-label">Date (Valid Offer Date)*</label>
+              <input 
+                type="date" 
+                className="form-input" 
+                value={date} 
+                onChange={(e) => setDate(e.target.value)}
+                required
+              />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Time*</label>
+              <label className="form-label">Time (Offer Start Time)*</label>
               <input 
                 type="text" 
                 className="form-input" 
                 value={time} 
                 onChange={(e) => setTime(e.target.value)}
                 placeholder="e.g. 9:00 AM"
+                required
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Offer*</label>
+              <label className="form-label">Offer % (Discount)*</label>
               <input 
                 type="text" 
                 className="form-input" 
                 value={offerPercent} 
                 onChange={(e) => setOfferPercent(e.target.value)}
+                placeholder="e.g. 20% Off"
+                required
               />
             </div>
           </div>
@@ -264,6 +310,8 @@ export default function OffersByDate() {
                 rows={3} 
                 value={description} 
                 onChange={(e) => setDescription(e.target.value)}
+                placeholder="e.g. Offer applicable on first book"
+                required
               />
             </div>
           </div>
@@ -271,14 +319,28 @@ export default function OffersByDate() {
         </form>
       </div>
 
-      {/* ══ Section 2: Table Card inside light green container ══ */}
+      {/* Search Filter Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 39px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', background: '#ffffff', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '6px 12px', width: '320px' }}>
+          <Search size={16} style={{ color: '#9CA3AF', marginRight: '8px' }} />
+          <input 
+            type="text" 
+            placeholder="Search offers..." 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px' }}
+          />
+        </div>
+      </div>
+
+      {/* ══ Section 2: Table Card ══ */}
       <div className="dash-section" style={{ marginBottom: 24, padding: '24px' }}>
         <div className="chart-card" style={{ padding: 0, overflow: 'hidden', borderRadius: 12, border: 'none', boxShadow: 'none' }}>
           <div style={{ overflowX: 'auto' }}>
             <table className="data-table" style={{ whiteSpace: 'nowrap' }}>
               <thead>
                 <tr>
-                  {['Offer ID', 'Dates & Time', 'Property Name', 'Location', 'Category', 'Room', 'Foods', 'Amenities', 'Offer', 'Description', 'Status', ''].map((h, i) => (
+                  {['Offer ID', 'Dates & Time', 'Property Name', 'Location', 'Category', 'Room', 'Foods', 'Amenities', 'Offer %', 'Description', 'Status', ''].map((h, i) => (
                     <th key={i} style={{ color: '#9CA3AF', fontWeight: 500, padding: '14px 16px' }}>
                       <span className="th-inner">
                         {h}
@@ -292,9 +354,9 @@ export default function OffersByDate() {
                 {loading ? (
                   <tr><td colSpan="12" style={{ padding: '14px 16px', color: '#6B7280' }}>Loading offers...</td></tr>
                 ) : filteredOffers.length === 0 ? (
-                  <tr><td colSpan="12" style={{ padding: '14px 16px', color: '#6B7280' }}>No offers found.</td></tr>
+                  <tr><td colSpan="12" style={{ padding: '14px 16px', color: '#6B7280' }}>No promotional offers found.</td></tr>
                 ) : filteredOffers.map((o, i) => (
-                  <tr key={i}>
+                  <tr key={o._id}>
                     <td style={{ color: '#58A429', fontWeight: 600, padding: '14px 16px' }}>{o.id}</td>
                     <td style={{ color: '#6B7280', padding: '14px 16px' }}>{o.dates}</td>
                     <td style={{ color: '#111827', fontWeight: 500, padding: '14px 16px' }}>{o.name}</td>
@@ -306,11 +368,11 @@ export default function OffersByDate() {
                     </td>
                     <td style={{ color: '#4B5563', padding: '14px 16px' }}>{o.room}</td>
                     <td style={{ color: '#4B5563', padding: '14px 16px' }}>{o.foods}</td>
-                    <td style={{ color: '#4B5563', padding: '14px 16px' }}>{o.amenities}</td>
+                    <td style={{ color: '#4B5563', padding: '14px 16px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.amenities}</td>
                     <td style={{ color: '#111827', fontWeight: 600, padding: '14px 16px' }}>{o.offer}</td>
                     <td style={{ color: '#6B7280', padding: '14px 16px', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '200px' }}>{o.desc}</td>
                     <td style={{ padding: '14px 16px' }}>
-                      {o.status === 'Active'
+                      {o.status.toLowerCase() === 'active'
                         ? <span className="status-pill active" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, background: '#DCFCE7', color: '#58A429' }}>
                             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#58A429' }}></span> Active
                           </span>
@@ -321,9 +383,7 @@ export default function OffersByDate() {
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <button style={{ color: '#58A429', background: 'none', border: 'none', cursor: 'pointer' }}><Edit2 size={14} /></button>
                         <button onClick={() => handleDeleteOffer(o._id)} style={{ color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={14} /></button>
-                        <button className="action-dots"><MoreVertical size={14} /></button>
                       </div>
                     </td>
                   </tr>
