@@ -18,6 +18,81 @@ export default function Register() {
   });
   const [loading, setLoading] = useState(false);
 
+  React.useEffect(() => {
+    const checkAuthAndRedirect = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get('token');
+      
+      if (urlToken) {
+        setLoading(true);
+        try {
+          const profileRes = await fetch('http://localhost:5000/api/users/profile', {
+            headers: { 'Authorization': `Bearer ${urlToken}` }
+          });
+          if (!profileRes.ok) throw new Error('Token verification failed');
+          let user = await profileRes.json();
+          
+          if (!['owner', 'admin', 'super_admin'].includes(user.role)) {
+            const updateRes = await fetch('http://localhost:5000/api/users/profile', {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${urlToken}`
+              },
+              body: JSON.stringify({ role: 'owner' })
+            });
+            if (updateRes.ok) {
+              user = await updateRes.json();
+            }
+          }
+          
+          localStorage.setItem('token', urlToken);
+          localStorage.setItem('owner_user', JSON.stringify(user));
+          navigate('/owner/dashboard', { replace: true });
+        } catch (err) {
+          console.error('Auto login failed in Register:', err);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        const existingToken = localStorage.getItem('token') || localStorage.getItem('user_token');
+        if (!existingToken) {
+          window.location.href = 'http://localhost:5173?openAuth=true';
+        } else {
+          setLoading(true);
+          try {
+            const profileRes = await fetch('http://localhost:5000/api/users/profile', {
+              headers: { 'Authorization': `Bearer ${existingToken}` }
+            });
+            if (profileRes.ok) {
+              let user = await profileRes.json();
+              if (!['owner', 'admin', 'super_admin'].includes(user.role)) {
+                const updateRes = await fetch('http://localhost:5000/api/users/profile', {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${existingToken}`
+                  },
+                  body: JSON.stringify({ role: 'owner' })
+                });
+                if (updateRes.ok) {
+                  user = await updateRes.json();
+                }
+              }
+              localStorage.setItem('owner_user', JSON.stringify(user));
+              navigate('/owner/dashboard', { replace: true });
+            }
+          } catch (err) {
+            console.error('Failed to verify existing token in Register:', err);
+          } finally {
+            setLoading(false);
+          }
+        }
+      }
+    };
+    checkAuthAndRedirect();
+  }, [navigate]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);

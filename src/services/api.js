@@ -26,6 +26,9 @@ export const propertyService = {
   uploadImages: (formData) => api.post('/properties/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
+  getLandmarks: (propertyId) => api.get(`/properties/${propertyId}/landmarks`),
+  addLandmark: (propertyId, data) => api.post(`/properties/${propertyId}/landmarks`, data),
+  deleteLandmark: (landmarkId) => api.delete(`/properties/landmarks/${landmarkId}`)
 };
 
 export const propertyRequestService = {
@@ -49,6 +52,9 @@ export const dashboardService = {
 
 export const bookingService = {
   getMine: () => api.get('/owner-dashboard/bookings'),
+  getRazorpayKey: () => api.get('/bookings/razorpay-key'),
+  createPremiumOrder: () => api.post('/bookings/create-premium-order'),
+  verifyPremium: (data) => api.post('/bookings/verify-premium', data),
 };
 
 export const enquiryService = {

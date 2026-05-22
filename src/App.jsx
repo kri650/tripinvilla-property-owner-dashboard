@@ -12,6 +12,7 @@ import Premium from './pages/Premium';
 import LogOut from './pages/LogOut';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import PricingRules from './pages/PricingRules';
 import './index.css';
 
 const ProtectedRoute = ({ children }) => {
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="bookings" element={<Bookings />} />
           <Route path="properties" element={<MyProperties />} />
+          <Route path="pricing-rules" element={<PricingRules />} />
           <Route path="profile" element={<Profile />} />
           <Route path="requests" element={<PropertyRequests />} />
           <Route path="offers" element={<OffersByDate />} />

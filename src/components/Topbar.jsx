@@ -34,31 +34,7 @@ export default function Topbar() {
       {/* Right – action buttons + date filter + user */}
       <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         
-        {/* "Add Property" green button (only visible on My Properties page to match Figma design) */}
-        {location.pathname === '/owner/properties' && (
-          <button 
-            onClick={() => {
-              const el = document.getElementById('property-form');
-              if (el) el.scrollIntoView({ behavior: 'smooth' });
-            }}
-            className="props-btn-add" 
-            style={{ 
-              background: '#58A429', 
-              color: '#ffffff', 
-              border: 'none', 
-              borderRadius: '8px', 
-              padding: '10px 20px', 
-              fontWeight: 600, 
-              fontSize: '13px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              cursor: 'pointer'
-            }}
-          >
-            Add Property
-          </button>
-        )}
+
 
         {/* Date picker pill */}
         <button className="topbar-date-btn" style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: '8px' }}>

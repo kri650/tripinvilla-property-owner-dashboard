@@ -38,7 +38,13 @@ export default function OffersByDate() {
       room: o.room_type || o.room || 'N/A',
       foods: o.food_type || o.foods || 'N/A',
       amenities: Array.isArray(o.amenities) ? o.amenities.join(', ') : (o.amenities || 'N/A'),
-      offer: o.offer_percent || (typeof o.offerPercent === 'number' ? `${o.offerPercent}% Off` : (o.offer || 'N/A')),
+      offer: (() => {
+        const val = o.offer_percent || o.offerPercent || o.offer || '20% Off';
+        const str = String(val).trim();
+        if (/off/i.test(str)) return str;
+        if (str.endsWith('%')) return `${str} Off`;
+        return `${str}% Off`;
+      })(),
       desc: o.description || o.desc || '',
       status: o.status || 'active'
     };

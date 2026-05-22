@@ -21,6 +21,7 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [isPremium, setIsPremium] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -41,6 +42,7 @@ export default function Profile() {
           state: data.state || '',
           pincode: data.pincode || ''
         });
+        setIsPremium(data.isPremium === true);
       } catch (err) {
         console.error('Error fetching profile:', err);
       } finally {
@@ -297,7 +299,7 @@ export default function Profile() {
             </div>
             
             <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111827', margin: 0, fontFamily: '"Outfit", sans-serif' }}>{formData.name}</h3>
-            <span style={{ fontSize: 11.5, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', marginTop: 4 }}>Premium Host</span>
+            <span style={{ fontSize: 11.5, color: isPremium ? '#1d9e75' : '#9ca3af', fontWeight: 600, textTransform: 'uppercase', marginTop: 4 }}>{isPremium ? 'Premium Host' : 'Normal Host'}</span>
           </div>
         </div>
 
